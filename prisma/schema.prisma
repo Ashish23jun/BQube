@@ -1,0 +1,153 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// ============================================
+// MODULE 1: USER & BUSINESS MANAGEMENT
+// ============================================
+
+model User {
+    id           String       @id @default(uuid())
+    name         String
+    email        String       @unique
+    password     String?
+    authProvider AuthProvider @default(EMAIL) @map("auth_provider")
+    createdAt    DateTime     @default(now()) @map("created_at")
+    updatedAt    DateTime     @updatedAt @map("updated_at")
+
+    businesses Business[]
+
+    @@map("users")
+}
+
+model Business {
+    id                String    @id @default(uuid())
+    name              String
+    gstin             String?
+    address           String?   @db.Text
+    city              String?
+    state             String?
+    country           String?   @default("India")
+    businessStartDate DateTime? @map("business_start_date") @db.Date
+    about             String?   @db.Text
+    ownerUserId       String    @map("owner_user_id")
+    createdAt         DateTime  @default(now()) @map("created_at")
+    updatedAt         DateTime  @updatedAt @map("updated_at")
+
+    owner    User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+    vendors  Vendor[]
+    expenses Expense[]
+
+    @@map("businesses")
+}
+
+enum AuthProvider {
+    EMAIL
+    GOOGLE
+}
+
+// ============================================
+// MODULE 3: VENDOR & CATEGORY MANAGEMENT
+// ============================================
+
+model Vendor {
+    id         String   @id @default(uuid())
+    businessId String   @map("business_id")
+    name       String
+    gstin      String?
+    totalSpend Decimal  @default(0) @map("total_spend") @db.Decimal(12, 2)
+    createdAt  DateTime @default(now()) @map("created_at")
+
+    business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    expenses Expense[]
+
+    @@map("vendors")
+}
+
+model Category {
+    id            String  @id @default(uuid())
+    name          String  @unique
+    gstApplicable Boolean @default(true) @map("gst_applicable")
+
+    expenses Expense[]
+
+    @@map("categories")
+}
+
+// ============================================
+// MODULE 2: EXPENSE INGESTION SYSTEM
+// ============================================
+
+enum PaymentMode {
+    CASH
+    CARD
+    UPI
+    BANK
+}
+
+enum ExpenseStatus {
+    PENDING_REVIEW
+    CONFIRMED
+}
+
+model Expense {
+    id         String @id @default(uuid())
+    businessId String @map("business_id")
+    vendorId   String @map("vendor_id")
+    categoryId String @map("category_id")
+
+    amount    Decimal @db.Decimal(12, 2)
+    gstAmount Decimal @map("gst_amount") @db.Decimal(12, 2)
+
+    cgst Decimal? @db.Decimal(12, 2)
+    sgst Decimal? @db.Decimal(12, 2)
+    igst Decimal? @db.Decimal(12, 2)
+
+    invoiceNumber String?     @map("invoice_number")
+    paymentMode   PaymentMode @map("payment_mode")
+    date          DateTime    @db.Date
+
+    receiptUrl String?       @map("receipt_url") @db.Text
+    status     ExpenseStatus @default(PENDING_REVIEW)
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    vendor   Vendor   @relation(fields: [vendorId], references: [id])
+    category Category @relation(fields: [categoryId], references: [id])
+    ocrJobs  OcrJob[]
+
+    @@map("expenses")
+}
+
+// ============================================
+// MODULE 3: OCR & EXTRACTION PIPELINE
+// ============================================
+
+enum OcrStatus {
+    PENDING
+    PROCESSED
+    FAILED
+}
+
+model OcrJob {
+    id        String @id @default(uuid())
+    expenseId String @map("expense_id")
+
+    rawText         String?  @map("raw_text") @db.Text
+    extractedData   Json?    @map("extracted_data")
+    confidenceScore Decimal? @map("confidence_score") @db.Decimal(5, 2)
+
+    status    OcrStatus @default(PENDING)
+    createdAt DateTime  @default(now()) @map("created_at")
+
+    expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+    @@map("ocr_jobs")
+}
