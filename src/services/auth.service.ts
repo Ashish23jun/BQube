@@ -2,6 +2,11 @@ import prisma from '../config/database';
 import { AuthResponse, LoginDTO, RegisterDTO } from '../types/auth.type';
 import { comparePassword, hashPassword } from '../utils/hash.util';
 import { generateToken } from '../utils/jwt.util';
+import {
+  ConflictError,
+  UnauthorizedError,
+  NotFoundError,
+} from '../utils/errors.util';
 
 export class AuthService {
   async register(data: RegisterDTO): Promise<AuthResponse> {
@@ -9,7 +14,7 @@ export class AuthService {
       where: { email: data.email },
     });
     if (exisitngUser) {
-      throw new Error('User with this email already exists');
+      throw new ConflictError('User with this email already exists');
     }
     const hashedPassword = await hashPassword(data.password); // In real implementation, hash the password
     const newUser = await prisma.user.create({
@@ -34,14 +39,14 @@ export class AuthService {
       where: { email: data.email },
     });
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new UnauthorizedError('Invalid email or password');
     }
     if (!user.password) {
-      throw new Error('Please sign in with Google');
+      throw new UnauthorizedError('Please sign in with Google');
     }
     const isPasswordValid = await comparePassword(data.password, user.password);
     if (!isPasswordValid) {
-      throw new Error('Invalid email or password');
+      throw new UnauthorizedError('Invalid email or password');
     }
     const token = generateToken({ userId: user.id, email: user.email });
     return {
@@ -63,7 +68,7 @@ export class AuthService {
       },
     });
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundError('User not found');
     }
     return user;
   }

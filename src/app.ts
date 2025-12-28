@@ -6,6 +6,8 @@ import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import apiRoutes from './routes';
+import { ApiResponse } from './utils/response.util';
+import { AppError, ValidationError } from './utils/errors.util';
 
 dotenv.config();
 
@@ -105,32 +107,42 @@ app.get('/api', (_req: Request, res: Response) => {
 app.use('/api', apiRoutes);
 
 app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Route not found',
-    path: req.originalUrl,
-  });
+  ApiResponse.notFound(res, `Route ${req.originalUrl} not found`);
 });
 
-interface CustomError extends Error {
-  statusCode?: number;
-  status?: string;
-}
-
 app.use(
-  (err: CustomError, _req: Request, res: Response, _next: NextFunction) => {
-    const statusCode = err.statusCode || 500;
-    const status = err.status || 'error';
-
+  (
+    err: Error | AppError | ValidationError,
+    _req: Request,
+    res: Response,
+    _next: NextFunction
+  ) => {
     if (process.env.NODE_ENV === 'development') {
       console.error('❌ Error:', err);
     }
 
-    res.status(statusCode).json({
-      status,
-      message: err.message || 'Internal server error',
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    });
+    // Handle ValidationError with field-level errors
+    if (err instanceof ValidationError) {
+      return ApiResponse.badRequest(res, err.message, err.errors);
+    }
+
+    // Handle AppError (custom errors with status codes)
+    if (err instanceof AppError) {
+      return ApiResponse.error(
+        res,
+        err.message,
+        err.statusCode,
+        undefined,
+        err.stack
+      );
+    }
+
+    // Handle generic errors
+    return ApiResponse.internalError(
+      res,
+      err.message || 'Internal server error',
+      err.stack
+    );
   }
 );
 
