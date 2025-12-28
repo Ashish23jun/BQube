@@ -69,14 +69,14 @@
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 
-  app.use((req: Request, res: Response, next: NextFunction) => {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
     req.headers['x-request-id'] = req.headers['x-request-id'] ||
       `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     next();
   });
 
 
-  app.get('/health', (req: Request, res: Response) => {
+  app.get('/health', (_req: Request, res: Response) => {
     res.status(200).json({
       status: 'success',
       message: 'Expense GST Backend API is running',
@@ -85,7 +85,7 @@
     });
   });
 
-  app.get('/api', (req: Request, res: Response) => {
+  app.get('/api', (_req: Request, res: Response) => {
     res.status(200).json({
       status: 'success',
       message: 'Expense GST API v1.0',
@@ -118,7 +118,7 @@
     status?: string;
   }
 
-  app.use((err: CustomError, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: CustomError, _req: Request, res: Response, _next: NextFunction) => {
     const statusCode = err.statusCode || 500;
     const status = err.status || 'error';
 
